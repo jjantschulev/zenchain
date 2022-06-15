@@ -7,6 +7,9 @@ use zenchain::blockchain::BlockChain;
 struct Cli {
     #[clap(short, long, value_parser)]
     port: u16,
+
+    #[clap(short, long, value_parser)]
+    key: Option<String>,
 }
 
 fn main() {
@@ -20,5 +23,5 @@ fn run_node() {
 
     let chain = BlockChain::load();
 
-    chain.run(cli.port);
+    chain.run(cli.port, cli.key);
 }

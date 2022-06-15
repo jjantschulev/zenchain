@@ -8,7 +8,7 @@ use crate::{
     types::{Address, Hash},
 };
 
-pub const DIFFICULTY_BITS: u32 = 28;
+pub const DIFFICULTY_BITS: u32 = 26;
 
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
 pub struct Block {

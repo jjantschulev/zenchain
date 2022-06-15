@@ -10,16 +10,22 @@ Guaranteed to be free of bugs. (might contain spiders so tread carefully)
 
 ### how to use this
 
-you need to generate a keypair first:
+first compile duh
 
 ```
-cargo run --bin client keys generate <name>
+cargo build --release --bin client; cargo build --release --bin node;
+```
+
+then you need to generate a keypair first:
+
+```
+./target/release/client keys generate <key-name>
 ```
 
 then you can start mining:
 
 ```
-cargo run --release --bin node -- --port 8888
+./target/release/node --port 8888 --key <key-name>
 ```
 
 If you want your node to be visible to other nodes you can add it to `nodes.txt` and submit a pull request on GH.

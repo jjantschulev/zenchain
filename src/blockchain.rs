@@ -18,8 +18,9 @@ use crate::{
 };
 
 enum MinerMessage {
-    NewTransaction(Transaction),
+    NewTransaction(Transaction, World),
     NewBlock(Block),
+    // RemoveTransaction(Address, u128),
 }
 
 #[derive(Serialize, Deserialize, Debug)]
@@ -54,19 +55,29 @@ impl BlockChain {
         chain
     }
 
-    pub fn run(mut self, port: u16) {
+    pub fn run(mut self, port: u16, key_name: Option<String>) {
         let (on_message_send, on_message_recv) = mpsc::channel::<ServerNetworkMessage>();
         let (return_send, return_recv) = mpsc::channel::<ClientNetworkMessage>();
+        let longest_chain = BlockChain::get_longest_chain_from_network();
 
         BlockchainServer::run(port, on_message_send, return_recv);
 
         let (miner_send, miner_recv) = mpsc::channel::<MinerMessage>();
 
+        for block in longest_chain {
+            match block.is_valid(&self) {
+                Ok(_) => {
+                    self.blocks.insert(block.get_hash(), block);
+                }
+                _ => {}
+            }
+        }
+
         let chain = self.get_chain();
         let last = chain.into_iter().last();
         println!("Last block index: {}", last.as_ref().map_or(0, |b| b.index));
 
-        let keypair = keys::load_keypair(None);
+        let keypair = keys::load_keypair(key_name);
         let address = keys::keypair_to_address(&keypair);
 
         thread::spawn(move || {
@@ -89,10 +100,15 @@ impl BlockChain {
         loop {
             match channel.try_recv() {
                 Ok(message) => match message {
-                    MinerMessage::NewTransaction(transaction) => {
+                    MinerMessage::NewTransaction(transaction, mut world) => {
                         println!("\nMiner got transaction: {}", transaction);
-                        transactions.push(transaction);
-                        block = Block::new(parent.as_ref(), &transactions, &miner);
+                        for t in &transactions {
+                            world.update_on_transaction(&t);
+                        }
+                        if let Ok(()) = transaction.is_valid(&world) {
+                            transactions.push(transaction);
+                            block = Block::new(parent.as_ref(), &transactions, &miner);
+                        }
                     }
                     MinerMessage::NewBlock(new_block) => {
                         println!(
@@ -100,9 +116,22 @@ impl BlockChain {
                             new_block.index,
                             keys::format_address(&new_block.miner)
                         );
+                        for transaction in &new_block.transactions {
+                            if let Some(index) = transactions.iter().position(|t| {
+                                t.sender == transaction.sender && t.index == transaction.index
+                            }) {
+                                transactions.remove(index);
+                            }
+                        }
                         parent = Some(new_block);
                         block = Block::new(parent.as_ref(), &transactions, &miner);
-                    }
+                    } // MinerMessage::RemoveTransaction(from, index) => {
+                      //     println!(
+                      //         "\nRemoving transaction {} from {} ",
+                      //         index,
+                      //         keys::format_address(&from)
+                      //     );
+                      // }
                 },
                 Err(err) => match err {
                     mpsc::TryRecvError::Empty => {}
@@ -166,9 +195,11 @@ impl BlockChain {
     }
 
     fn submit_transaction(&mut self, transaction: Transaction) -> Result<(), String> {
+        let world = World::from_chain(&self.get_chain());
+        transaction.is_valid(&world)?;
         match self.miner {
             Some(ref channel) => channel
-                .send(MinerMessage::NewTransaction(transaction))
+                .send(MinerMessage::NewTransaction(transaction, world))
                 .unwrap(),
             None => return Err("Transaction channel not initialized".to_string()),
         }
@@ -212,6 +243,28 @@ impl BlockChain {
         }
         chain.reverse();
         chain
+    }
+
+    pub fn get_longest_chain_from_network() -> Vec<Block> {
+        let nodes = load_nodes();
+        let mut longest_chain = Vec::new();
+        for node in nodes {
+            let client = BlockchainClient::new(&node);
+            let chain = client.send(ServerNetworkMessage::GetChain);
+            match chain {
+                Ok(msg) => match msg {
+                    ClientNetworkMessage::Chain(chain) => {
+                        println!("Got chain with len={} from {}: ", chain.len(), node);
+                        if chain.len() > longest_chain.len() {
+                            longest_chain = chain;
+                        }
+                    }
+                    _ => {}
+                },
+                Err(msg) => println!("Node {} error: {:?}", node, msg),
+            }
+        }
+        longest_chain
     }
 }
 

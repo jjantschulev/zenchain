@@ -9,7 +9,7 @@ use crate::{
 };
 
 pub struct BlockchainClient {
-    address: String,
+    pub address: String,
 }
 
 impl BlockchainClient {

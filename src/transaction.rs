@@ -98,20 +98,11 @@ impl Transaction {
             signature: signature_hash,
         };
 
-        println!(
-            "Transaction SEND {} $ZEN to: {}",
-            amount,
-            keys::format_address(&recipient)
-        );
-
-        println!(
-            "Transaction Signature Valid?: {:?}",
-            transaction.is_signature_valid()
-        );
-
-        let result = client.send(ServerNetworkMessage::SubmitTransaction(transaction))?;
-        println!("Transaction result: {:?}", result);
-        Ok(())
+        match client.send(ServerNetworkMessage::SubmitTransaction(transaction))? {
+            crate::types::ClientNetworkMessage::Ack => Ok(()),
+            crate::types::ClientNetworkMessage::Error(msg) => Err(msg),
+            _ => Err("Unexpected response from server".to_string()),
+        }
     }
 
     fn transaction_data_bytes(

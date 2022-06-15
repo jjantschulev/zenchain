@@ -1,6 +1,6 @@
 use clap::{Parser, Subcommand};
 
-use zenchain::{client::BlockchainClient, keys, transaction::Transaction};
+use zenchain::{client::BlockchainClient, keys, server, transaction::Transaction};
 
 #[derive(Parser)]
 #[clap(author, version, about, long_about = None)]
@@ -8,6 +8,9 @@ use zenchain::{client::BlockchainClient, keys, transaction::Transaction};
 struct Cli {
     #[clap(subcommand)]
     command: Commands,
+
+    #[clap(short, long, value_parser)]
+    node: Option<String>,
 }
 
 #[derive(Subcommand)]
@@ -45,7 +48,12 @@ enum KeyCommands {
 
 fn main() {
     let cli = Cli::parse();
-    let client = BlockchainClient::new("localhost:8888");
+    let client = BlockchainClient::new(&cli.node.unwrap_or("localhost:8888".to_string()));
+
+    let all_clients = server::load_nodes()
+        .iter()
+        .map(|node| BlockchainClient::new(node))
+        .collect::<Vec<_>>();
 
     // You can check for the existence of subcommands, and if found use their
     // matches just as you would the top level cmd
@@ -63,9 +71,14 @@ fn main() {
             );
         }
         Commands::Send { to, amount } => {
-            if let Err(msg) = Transaction::send(to, *amount, &client) {
-                println!("Error: {}", msg);
+            for client in &all_clients {
+                if let Err(msg) = Transaction::send(to, *amount, &client) {
+                    println!("Node {} Error: {}", client.address, msg);
+                } else {
+                    println!("Transaction sent to node: {}", client.address);
+                }
             }
+            println!("Sent {} $ZEN to: {}", amount, to);
         }
         Commands::Balance => {
             let address = keys::keypair_to_address(&keys::load_keypair(None));
