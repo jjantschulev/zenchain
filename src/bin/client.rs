@@ -63,13 +63,19 @@ fn main() {
             );
         }
         Commands::Send { to, amount } => {
-            Transaction::send(to, *amount, &client);
+            if let Err(msg) = Transaction::send(to, *amount, &client) {
+                println!("Error: {}", msg);
+            }
         }
         Commands::Balance => {
             let address = keys::keypair_to_address(&keys::load_keypair(None));
-            let balance = client.account_state(address);
-            println!("Account Balance   : {:?} $ZEN", balance.balance);
-            println!("Transaction Index : {:?}", balance.transaction_index);
+            match client.account_state(address) {
+                Ok(balance) => {
+                    println!("Account Balance   : {:?} $ZEN", balance.balance);
+                    println!("Transaction Index : {:?}", balance.transaction_index);
+                }
+                Err(err) => println!("Error: {:?}", err),
+            }
         }
     }
 }

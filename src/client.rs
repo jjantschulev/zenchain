@@ -19,24 +19,24 @@ impl BlockchainClient {
         }
     }
 
-    fn connect(&self) -> TcpStream {
-        let stream = TcpStream::connect(&self.address).unwrap();
-        return stream;
+    fn connect(&self) -> Result<TcpStream, String> {
+        let stream = TcpStream::connect(&self.address).map_err(|e| e.to_string())?;
+        return Ok(stream);
     }
 
-    pub fn account_state(&self, address: Address) -> AccountState {
-        let mut stream = self.connect();
+    pub fn account_state(&self, address: Address) -> Result<AccountState, String> {
+        let mut stream = self.connect()?;
         BlockchainClient::write_message(&mut stream, ServerNetworkMessage::AccountState(address));
         match BlockchainClient::read_message(&mut stream) {
-            ClientNetworkMessage::AccountState(state) => state,
+            ClientNetworkMessage::AccountState(state) => Ok(state),
             msg => panic!("Unexpected message: {:?}", msg),
         }
     }
 
-    pub fn send(&self, message: ServerNetworkMessage) -> ClientNetworkMessage {
-        let mut stream = self.connect();
+    pub fn send(&self, message: ServerNetworkMessage) -> Result<ClientNetworkMessage, String> {
+        let mut stream = self.connect()?;
         BlockchainClient::write_message(&mut stream, message);
-        BlockchainClient::read_message(&mut stream)
+        Ok(BlockchainClient::read_message(&mut stream))
     }
 
     fn read_message(stream: &mut TcpStream) -> ClientNetworkMessage {

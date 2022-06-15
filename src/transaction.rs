@@ -65,14 +65,14 @@ impl Transaction {
         return Ok(());
     }
 
-    pub fn send(to: &str, amount: u128, client: &BlockchainClient) {
+    pub fn send(to: &str, amount: u128, client: &BlockchainClient) -> Result<(), String> {
         let rsa = keys::load_keypair(None);
         let sender = keys::keypair_to_address(&rsa);
         let recipient = keys::parse_address(&to);
 
         let private_key = PKey::from_rsa(rsa).unwrap();
 
-        let state = client.account_state(sender);
+        let state = client.account_state(sender)?;
         let index = state.transaction_index + 1;
 
         let transaction_data =
@@ -109,8 +109,9 @@ impl Transaction {
             transaction.is_signature_valid()
         );
 
-        let result = client.send(ServerNetworkMessage::SubmitTransaction(transaction));
+        let result = client.send(ServerNetworkMessage::SubmitTransaction(transaction))?;
         println!("Transaction result: {:?}", result);
+        Ok(())
     }
 
     fn transaction_data_bytes(

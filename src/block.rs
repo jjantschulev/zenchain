@@ -8,8 +8,7 @@ use crate::{
     types::{Address, Hash},
 };
 
-pub const DIFFICULTY: u32 = 3;
-pub const BLOCK_REWARD: u128 = 100;
+pub const DIFFICULTY_BITS: u32 = 28;
 
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
 pub struct Block {
@@ -24,12 +23,13 @@ pub struct Block {
 
 impl Block {
     pub fn new(parent: Option<&Block>, transactions: &Vec<Transaction>, miner: &Address) -> Block {
+        let index = parent.as_ref().map_or(1, |b| b.index + 1);
         Block {
-            index: parent.as_ref().map_or(1, |b| b.index + 1),
+            index,
             prev_hash: parent.as_ref().map_or([0u8; 32], |b| b.get_hash()),
             transactions: transactions.clone(),
-            difficulty: DIFFICULTY,
-            reward: BLOCK_REWARD,
+            difficulty: DIFFICULTY_BITS,
+            reward: get_block_reward(index),
             miner: miner.clone(),
             nonce: [0u8; 32],
         }
@@ -50,8 +50,7 @@ impl Block {
         for _ in 0..attempts {
             self.randomize_nonce();
             let hash = self.get_hash();
-            let difficulty_buffer = vec![0u8; self.difficulty as usize];
-            if hash.starts_with(&difficulty_buffer) {
+            if hash_valid(self.difficulty, &hash) {
                 return true;
             }
         }
@@ -63,10 +62,10 @@ impl Block {
     }
 
     pub fn is_valid(&self, blockchain: &BlockChain) -> Result<(), String> {
-        if self.difficulty != DIFFICULTY {
+        if self.difficulty != DIFFICULTY_BITS {
             return Err("Invalid difficulty".to_string());
         }
-        if self.reward != BLOCK_REWARD {
+        if self.reward != get_block_reward(self.index) {
             return Err("Invalid reward".to_string());
         }
         let parent = if self.prev_hash == [0u8; 32] {
@@ -90,8 +89,7 @@ impl Block {
         }
 
         let hash = self.get_hash();
-        let difficulty_buffer = vec![0u8; self.difficulty as usize];
-        if !hash.starts_with(&difficulty_buffer) {
+        if !hash_valid(self.difficulty, &hash) {
             return Err("Invalid hash. Did you really do the work?".to_string());
         }
 
@@ -111,4 +109,31 @@ impl Block {
 
         return Ok(());
     }
+}
+
+fn get_block_reward(index: u128) -> u128 {
+    let power = index / 1_000_000;
+    let reward_multiplier = 0.5f64.powf(power as f64);
+    return reward_multiplier as u128 * 100;
+}
+
+fn hash_valid(difficulty: u32, hash: &Hash) -> bool {
+    let bytes = difficulty / 8;
+    let bits = difficulty % 8;
+    let mut bit_mask = 0u8;
+    for i in 0..bits {
+        bit_mask |= 1 << i;
+    }
+
+    let mask = vec![0u8; bytes as usize];
+    if !hash.starts_with(&mask) {
+        return false;
+    }
+
+    let bit_mask = bit_mask;
+
+    let special_bit = hash[bytes as usize];
+    let special_bit = special_bit & bit_mask;
+
+    return special_bit == 0;
 }

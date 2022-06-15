@@ -90,11 +90,16 @@ impl BlockChain {
             match channel.try_recv() {
                 Ok(message) => match message {
                     MinerMessage::NewTransaction(transaction) => {
-                        println!("Miner got transaction: {}", transaction);
+                        println!("\nMiner got transaction: {}", transaction);
                         transactions.push(transaction);
                         block = Block::new(parent.as_ref(), &transactions, &miner);
                     }
                     MinerMessage::NewBlock(new_block) => {
+                        println!(
+                            "\nBlock {} mined by: {}",
+                            new_block.index,
+                            keys::format_address(&new_block.miner)
+                        );
                         parent = Some(new_block);
                         block = Block::new(parent.as_ref(), &transactions, &miner);
                     }
