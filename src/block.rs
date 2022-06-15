@@ -8,7 +8,7 @@ use crate::{
     types::{Address, Hash},
 };
 
-pub const DIFFICULTY: u32 = 2;
+pub const DIFFICULTY: u32 = 3;
 pub const BLOCK_REWARD: u128 = 100;
 
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
